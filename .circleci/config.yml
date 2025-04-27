@@ -1,0 +1,53 @@
+version: 2.1
+
+executors:
+  go-executor:
+    docker:
+      - image: cimg/go:1.22
+    working_directory: ~/go/src/github.com/nehalandrew/circleci-test
+
+jobs:
+  build:
+    executor: go-executor
+    steps:
+      - checkout
+
+      - run:
+          name: Install dependencies
+          command: go mod download
+
+      - run:
+          name: Build the web server
+          command: go build -o server .
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - server
+
+  deploy:
+    docker:
+      - image: cimg/base:stable
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ./build_output
+
+      - run:
+          name: Commit and push new server binary
+          command: |
+            cp build_output/server ./server
+            git config user.email "ci@example.com"
+            git config user.name "CircleCI Bot"
+            git add server
+            git commit -m "Update built server binary [ci skip]" || echo "No changes"
+            git push origin main
+
+workflows:
+  build-and-deploy:
+    jobs:
+      - build
+      - deploy:
+          requires:
+            - build
